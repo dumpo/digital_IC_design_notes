@@ -108,15 +108,15 @@ E-->F[板级验证]
 
 - ##### 反相器
 
-![img](pics\反相器.jpg)
+![img](数字IC学习笔记/pics/反相器.jpg)
 
-- ##### 与非<img src="pics\与非门.jpg" alt="img" style="zoom: 80%;" />
+- ##### 与非<img src="数字IC学习笔记/pics/与非门.jpg" alt="img" style="zoom: 80%;" />
 
 上并下串
 
 - ##### 或非
 
-##### <img src="pics\或非门.jpg" alt="img" style="zoom:80%;" />
+##### <img src="数字IC学习笔记/pics/或非门.jpg" alt="img" style="zoom:80%;" />
 
 上串下并
 
@@ -124,13 +124,13 @@ E-->F[板级验证]
 
 - ##### 逻辑电平
 
-#### <img src="pics\CMOS电平.jpg" alt="img" style="zoom: 67%;" /><img src="pics/TTL电平.jpg" alt="img" style="zoom: 67%;" />
+#### <img src="数字IC学习笔记/pics/CMOS电平.jpg" alt="img" style="zoom: 67%;" /><img src="数字IC学习笔记/pics/TTL电平.jpg" alt="img" style="zoom: 67%;" />
 
  TTL的噪声容限更大
 
 - ##### 功耗
 
-![img](pics/功耗对比.jpg)
+![img](数字IC学习笔记/pics/功耗对比.jpg)
   TTL电路的功耗在工作频率的范围以内基本上是恒定 
   的。但是，CMOS电路的功耗则和频率有关。在静态（直 
   流）条件下它的功耗是非常小的，并随着频率的增加而增 
@@ -155,7 +155,7 @@ CMOS电路的负载不同于TTL电路 的负载，因为CMOS逻辑电路所使�
 
 #### PMOS与NMOS，耗尽型与增强型的结构，区别
 
-<img src="pics/MOS结构1.jpg" alt="img" style="zoom: 67%;" />
+<img src="数字IC学习笔记/pics/MOS结构1.jpg" alt="img" style="zoom: 67%;" />
 <img src="pics/MOS结构2.jpg" alt="img" style="zoom: 67%;" />
 
 耗尽型可以工作在增强模式（VGS为正）或耗尽模式（VGS为负），增强型没物理沟道，衬底延伸到绝缘栅，只能工作在增强模式，低于阈值电压都是关断。
@@ -380,11 +380,9 @@ reg型表示的寄存器类型，用于always模块内被赋值的信号，必�
 
 #### Verilog的时序检查
 
-​	详见：https://blog.csdn.net/u014703817/article/details/47334693
-
 - ​	specify块
 
-  specify block用来描述从源点（source：input/inout port）到终点（destination：output/inout port）的路径延时（path delay），由specify开始，到endspecify结束，并且只能在模块内部声明，具有精确性（accuracy）和模块性（modularity）的特点。specify block可以用来执行以下三个任务：
+  specify block用来描述从源点（source：input/inout port）到终点（destination：output/inout port）的路径延时（path delay），由specify开始，到endspecify结束，specify block可以用来执行以下三个任务：
 
   - 描述横穿整个模块的各种路径及其延时。（module path delay）
 
@@ -393,6 +391,110 @@ reg型表示的寄存器类型，用于always模块内被赋值的信号，必�
   - 时序检查。（timing check）
 
 ​	specify block有一个专用的关键字specparam用来进行参数声明，用法和parameter一样，不同点是两者的作用域不同：specparam只能在specify block内部声明及使用，而parameter只能在specify block外部声明及使用。
+
+- 模块路径声明：
+
+   先描述模块，再把延迟赋值给路径。路径有三种：simple path，edge-sensitive path，State-dependent path。
+
+  - 模块路径的要求
+    1. 源信号(src)应该是模块的i叩ut或inoutport。 
+    2. 源信号(src)可以是scalar和vector的任意组合。
+    3. 目的信号(dst)应该是模块的output或inoutport。
+    4. 目的信号(dst)可以是scalar和vector的任意组合。
+    5. 目的信号(dst)应该只能被一个驱动源(Driver)驱动。
+
+- 简单路径
+
+  简单路径(Simple path)可以使用下面的两种连接类型。 
+
+  1. src *> dst：用于 src 和 dst 之间的全连接(Full connection)。 
+  2. src => dst：用于 src 和 dst 之间的并行连接(Parallel connection)。
+
+  ```verilog
+  module mux8 (ini, in2, s, q); 
+      output [7:0] q; 
+      input [7:0] ini, in2; 
+      input s; // Functional description omitted ... 
+      specify 
+          (ini => q) = (3, 4); //parallel connection 
+          (in2 => q) = (2, 3); //parallel connection 
+          (s *> q) = 1;		//full connection
+          endspecify 
+  endmodule
+  ```
+
+  ![image-20201115210024637](数字IC学习笔记/pics/image-20201115210024637.png)
+
+- 模块路径极性(Module path polarity):
+
+  - 1. Unknown polarity：使用 *> 和=>, src rise 导致 dst rise> fall or no change, src fall 导致 dst rise、fall or no_change。 *
+    2. Positive polarity：使用 +*> 和 +=>, src rise 导致 dst rise or no change» src fall 导致 dst fall or no change。 *
+    3. Negative polarity：使用-*> 和-=>, src rise 导致 dst fall or no change, src fall 导致 dst rise or no change。
+
+- 边沿敏感路径
+
+  沿敏感路径(Edge-sensitive path)就是在描述模块路径时对src使用了沿转换(Edge transition),用于描述在src指定沿上发生的input-to-output延迟。 
+
+  沿敏感路径的使用原则如下： 
+
+  1.    沿(Edge)可以是 posedge 或 negedge，与 src—起使用。 
+  2.    如果src是vector,那么就只检查最低位(LSB)的沿转换。 
+  3.    如果没有指定沿转换，那么src的任意沿转换都会导致路径有效。 
+  4.    沿敏感路径可以使用=> 和*>o 对于 =>,dst应该是scalar； 对于 *>, dst可以是scalar或vector。 
+  5.    沿敏感路径可以指出datapath的关系： +: (not invert)» -: (invert), : (not specify)。
+
+  ```verilog
+  //I. module path posedge clock--> out: rise delay=10, fall delay=8. 
+  // data path in ——>out: not invert 
+  (posedge clock => (out +: in)) = (10, 8); //2. module path negedeg clock——> out: rise delay=10, fall delay=8. 
+  // data path in -->out: invert 
+  (negedge clock => (out -: in)) = (10, 8); 
+  //3. module path any_edge clock--> out: rise delay=10, fall delay=8. 
+  // data path in -->out: not specify 
+  (clock => (out : in)) = (10, 8); 
+  //4. module path posedge clock--> out: rise delay=10, fall delay=8. 
+  // no data path 
+  (posedge clock => out) = (10, 8);
+  
+  ```
+
+- 状态依赖路径
+
+  对于状态依赖路径(State-dependent path),只有在指定的条件为true时，对应的延迟才能起作用。 状态依赖路径包含三部分：条件表达式(Conditional expression)、模块路径描述、模块路径上的延迟。 
+
+  状态依赖路径语法如下：
+
+  ```verilog
+  if (module_path_expression ) simple_path_declaration 
+  if (module_path_expression ) edge_sensitive_path_declaration 
+  ifnone simple_path_declaration 
+  ```
+
+  条件表达式使用如下规则。 
+
+  1. 条件表达式可以使用模块的input或inout port＞它们的bit-select或part-select、模块内定义 线网或变量、常数、specparams。 
+  2. 如果条件表达式的值是x或z，那么也认为是true。
+  3. 如果条件表达式的值是multi-bit,那么只检查最低位(LSB)。 
+  4. ifnone用于当所有条件为false时默认的状态依赖路径。 
+  5. ifnone只能用于简单路径。
+
+- 模块路径延迟
+
+  模块路径赋值的原则如下：
+
+  1. 左侧是模块路径描述，右侧是一个或多个延迟值。
+  2. 延迟值可以放在一个括号内。 
+  3. 延迟值可以是常数，也可以是specparamso 
+  4. 延迟值可以是一个数值，也可以是一个表示(maxlyp:min)的三元组。 
+  5. 对于路径延迟与信号转换的关系，可以指定1、2、3、6或12个延迟值。 
+
+- 时序检查
+
+  - 使用$开头的命令，<u>非系统命令</u>，系统命令不能出现再specify块内，时序检查命令不可在specify块外
+  - 稳定时间窗口描述，检查事件发生的时间窗口 ，有＄setup、＄hold、＄setuphold、＄recovery、＄removal、＄recrem
+  - 时钟和控制信号检查，检查时间两个事件的差值，有＄skew、＄timeskew、＄fullskew、 ＄width、$width、$period、$nochange
+
+
 
 #### 可综合与不可综合的语句总结
 
@@ -403,7 +505,25 @@ reg型表示的寄存器类型，用于always模块内被赋值的信号，必�
 #### 时序约束的分类和任务
 
 - STA静态时序分析
+
+  分析门级网表的拓扑结构，计算所有通路的传输延迟，生成有向无环图。但有可能检查了**无效路径**，从而生成错误虚假的违例警告。
+
 - DTA动态时序分析
+
+  基于电路的行为级、门级、开关级模型进行动态仿真。依赖于激励源，有可能漏掉关键路径，漏报时序违约。
+
+- 两者对比
+
+  |                              | STA          | DTA          |
+  | ---------------------------- | ------------ | ------------ |
+  | 方法                         | 仿真         | 路径分析     |
+  | 激励源                       | 不需要       | 需要         |
+  | 覆盖率                       | 与激励源无关 | 与激励源有关 |
+  | 风险                         | 警告错误     | 丢失警告     |
+  | **最大最小分析**，与综合配合 | 可           | 不可         |
+  | 内存占用                     | 小           | 大           |
+  | 运行时间                     | 快           | 慢           |
+
 - 任务
   - 建立时间约束
   - 保持时间约束
@@ -411,6 +531,20 @@ reg型表示的寄存器类型，用于always模块内被赋值的信号，必�
   - 时钟偏移（clock skew）约束
   - 时钟周期约束
   
+
+#### 时序异常的约束
+
+- 虚假路径	
+
+  不需要满足任何时序要求的路径，EDA忽略该路径的时序
+
+- 多周期路径
+
+  需要多个周期来传输数据的路径，EDA放宽该路径的时序
+
+- 最小延迟和最大延迟
+
+  当有对最小延迟和最大延迟有特殊要求（与setup、hold约束的推测值不同）时指定
 
 #### PTV
 
@@ -434,15 +568,11 @@ reg型表示的寄存器类型，用于always模块内被赋值的信号，必�
 
 #### OCV（On-chip-Variation）
 
-​	片上变化，
-
-#### 虚假路径
+​	片上变化
 
 #### 时钟激励的约束
 
 #### setup time与hold time和什么有关，setup和hold裕度计算
-
-
 
 #### 时序违例的修复
 
