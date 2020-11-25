@@ -9,6 +9,7 @@
       缺点主要有以下几条：
       a、复位信号的有效时长必须大于时钟周期，才能真正被系统识别并完成复位任务。同时还要考虑，诸如：clk skew,组合逻辑路径延时,复位延时等因素。
       b、FPGA内寄存器中支持异步复位专用的端口CLR，所以，倘若采用同步复位的话，综合器就会在寄存器的数据输入端口插入组合逻辑，这样就会耗费较多的逻辑资源。
+  
 - 对于异步复位来说，他的优点也有三条：
       a、大多数目标器件库的dff都有异步复位端口，因此采用异步复位可以节省资源。
       b、设计相对简单。
@@ -16,7 +17,24 @@
       缺点： 
       a、在复位信号释放(release)的时候容易出现问题。具体就是说：倘若复位释放时恰恰在时钟有效沿附近，就很容易使寄存器输出出现亚稳态，从而导致亚稳态。
       b、复位信号容易受到毛刺的影响。
+  
 - 异步复位同步释放电路
+
+  同步复位和异步复位都不可靠，将两者结合，取长补短,既解决了同步复位的资源消耗问题，也解决了异步复位的亚稳态问题。其根本思想，也是将异步信号同步化。
+
+  ```verilog
+  always @ (posedge clk)
+      rst_n <= a_rst_n;                 //关键：异步复位信号用同步时钟打一拍(也可以多拍)
+  
+  always @ (posedge clk or negedge rst_n)
+           if(!rst_n) b <= 1'b0;
+           else b <= a;
+  always @ (posedge clk or negedge rst_n)
+           if(!rst_n) c <= 1'b0;
+           else c <= b;     
+  ```
+
+  
 
 #### 跨时钟域CDC
 
@@ -334,15 +352,24 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
 
   
 
-#### 有限状态机
+#### 有限状态机FSM
 
 - 分类
 
   - 一段式
+
+    所有逻辑写在一个always模块，不建议
+
   - 二段式
+
+    一个always描述组合逻辑（状态转移逻辑、状态输出），一个描述时序逻辑（各状态的行为）
+
   - 三段式
 
+    二段式的基础上，把状态转移和状态输出分离开，易于修改，推荐
+
   - Moore型
+
   - Mealy型
 
 - 状态编码的选择
@@ -394,28 +421,162 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
 - Wallace树
 - 除法器
 
-#### 总线通信
-
-- 串并转换
-- UART
-- I2C
-- SPI
+- 
 
 #### 其他
 
-- 边缘检测，输入消抖，毛刺消除
+- 边缘检测
+
+  ```verilog
+  module top_module (
+      input clk,
+      input [7:0] in,
+      output [7:0] pedge
+  );
+      reg [7:0] temp;
+      always@(posedge clk)begin
+          temp<=in;
+          pos_edge<=(~t&in);
+          neg_edge=(t&~in) 
+      end
+  endmodule
+  ```
+
+- 双边缘触发器
+
+  ```verilog
+  //法一：对结果进行寄存
+  module top_module (
+      input clk,
+      input d,
+      output q
+  );
+      reg q1,q2;
+      assign q=clk?q1:q2;
+      always @(posedge clk) q1<=d;
+      always @(negedge clk) q2<=d;
+  endmodule
+  
+  //法2：时钟倍频
+  //法3；对时钟进行寄存
+  ```
+
+  
 
 - 计数器：二进制，移位，移位+反向
 
+- 奇偶校验
+
+  ```verilog
+  function cal_parity_odd;
+  input [31:0]address;
+  begin
+    cal_parity=^address;//缩减异或，1的个数为偶数结果为0，奇数为1
+  end
+  
+      
+  function cal_parity_even;
+  input [31:0]address;
+  begin
+    cal_parity=^address;//缩减异或，1的个数为偶数结果为1，奇数为0
+  end
+  ```
+
+  
+
 - 串行-并行CRC
 
+  - CRC由一称为生成多项式的常数去除该数据流的二进制数值而得，商数被放弃，余数作为冗余编码追加到数据流尾，产生新的数据流进行发送。在接收端，新的数据流被同一常数去除，检查余数是否为零。如果余数为零，就认为传输正确，否则就认为传输中己发生差错，该数据流重发。不同的生成多项式有不同的检错能力，为了得到优化的结果，必须根据需要选择合适 的生成多项式。
+
+    | 名称         | 生成多项式                           | 简记式   | 应用                                       |
+    | ------------ | ------------------------------------ | -------- | ------------------------------------------ |
+    | CRC-4        | $X^4+X+1$                            | 3        |                                            |
+    | CRC-8        | $X^8+X^5+X^4+1$                      | 0x31     |                                            |
+    | CRC-8        | $X^8+X^2+X^1+1$                      | 0x07     |                                            |
+    | CRC-8        | $X^8+X^6+X^4+X^3+X^2+X^1$            | 0x5E     |                                            |
+    | CRC-12       | $X^{12}+X^{11}+X^3+X+1$              | 80F      |                                            |
+    | CRC-16       | $X^{16}+X^{15}+X^2+1$                | 8005     | IBM SDLC                                   |
+    | CRC-16-CCITT | $X^{16}+X^{12}+X^5+1$                | 1021     |                                            |
+    | CRC-32       | $X^{32}+X^{26}+X^{23}+...+X^2+X+1$   | 04C1DB7  | ZIP，RAR，**IEEE 802 LAN/FDDI**，IEEE 1394 |
+    | CRC-32C      | $X^{32}+X^{28}+X^{27}+...+X^8+X^6+1$ | 1EDC6F41 | SCTP                                       |
+
+  - 计算过程：
+
+    1. 将数据乘以$X^n$，n为生成多项式的最高次系数（CRC-n即为n），直接把数据左移n位。
+    2. 左移后的数据，使用模2除法除以生成多项式，计算余数。
+    3. 余数附加到原始数据后,发送。
+    4. 接收端，传输信息的前一部分为原始数据流D;后一部分(最后n位数)为余数R。整个 数据流多项式被同一生成多项式G去除，商数被丢弃，余数应为0。如果余数不为0,说明传输数 据时发生错误，数据需要重传。
+
+  - **串行CRC**:通常，CRC校验码的值可以通过线性移位寄存器和异或门求得，线性移位寄存器一次右移一 位，完成除法功能，异或门完成不带进位的减法功能。如果G(X)系数为’1’，则从被除数的高阶位减去除数，同时移位寄存器右移一位，准备为被除数的较低位进行运算。如果商数为’0’，则移位寄存器直接右移一位。
+
+  - ![image-20201124231457190](pics/image-20201124231457190.png)
+
+    ```verilog
+    //CRC8 G(X)=X^16+X^12+X^5+1
+    module CRC16_SER
+        ( input Reset , //Reset signal 
+          input Gclk ，//Clock signal 
+          input Soc ， //Start of cell Data 
+          input in，//input data of cell Crc 
+          output reg [15:0] out //output CRC signal 
+        )；
+    	reg temp;
+        integer i,j,k,l;
+        always @(posedge Reset or posedge Gclk) 
+            begin 
+                if (Reset) 
+                    Crc_out <= 16’b0;
+                else if (Soc = l’bl) 
+                    Crc_out <=16’b0 ;
+                else begin 
+                    Temp = Data_in ^ Crc_out[15]; 
+                    
+                    for (j=15;j>12;j=j-l) 
+                        Crc_out[j] <= Crc_out[j-1]; 
+                    Crc_out[12] <=Temp ^ Crc_out[ll]; 
+                    
+                    for (k=11;k>5;k=k-1) 
+                        Crc_out[k] <=  Crc_out[k-1]; 
+                    Crc_out[5] <=  Temp ^ Crc_out[4];
+                    
+                    for (l=4;l>0;l=l-1)
+                        Crc_out[l] <= Crc_out[l-1];
+                    Crc_out[0] <= Temp
+                end
+            end            
+    endmodule
+        
+        
+    ```
+
+    
+
+  - **并行CRC**:并行CRC校验码产生器 16位CRC同时输出，所以要求在一个时钟周期内，移位寄存器一次需要移16位。实际上，移位寄 存器不可能在一个时钟周期内移16位，所以这部分电路是用**组合逻辑来完成**。整个CRC校验码产生器由组合逻辑和16个输出寄存器组成。
+
+    
+
 - 独热码检测
+
+  ```verilog
+  function automatic logic is_onehot(input [WIDTH-1:0] sig);
+    localparam SUM_WIDHT = $clog2(WIDTH) + 1;
+    logic [SUM_WIDTH-1:0] sum;
+    sum = '0;
+    for(int i = 0; i < WIDHT; i++)
+       sum = sum + sig[i];
+    is_onehot = (sum == 1);
+  endfunction
+  ```
+  
+
+  
+- 串并转换
 
   
 
 
 
-### 低功耗设计基础
+
 
 - ### clock gating
 
@@ -437,42 +598,4 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
 
   
 
-### 总线与通信协议
-
-- AXI总线
-- DDR
-- **UDP**
-  - **ARP协议**
-
-## 计算机组成原理
-
-- 流水线结构
-
-  - 超流水
-
-  - 旁路
-
-  - 分支预测
-  - 超标量
-  - 多发射
-  - 乱序执行
-
-- 储存
-
-  - cache
-
-  - MMU
-
-  - TLB
-
-  - ROM
-
-  - RAM
-
-  - SRAM
-
-  - DRAM
-
-  - SDRAM
-
-  - DDR SDRAM
+- - 
