@@ -1,5 +1,7 @@
 #### HDLBits重点复习
 
+
+
 #### 同步与异步复位 
 
 - 同步复位的优点大概有3条：
@@ -379,7 +381,7 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
 
   （对于FPGA，可用资源数固定，资源足够就用独热码）
 
-- 序列检测器
+- 序列检测器0010
 
 - 饮料售卖机
 
@@ -421,7 +423,6 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
 - Wallace树
 - 除法器
 
-- 
 
 #### 其他
 
@@ -437,7 +438,9 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
       always@(posedge clk)begin
           temp<=in;
           pos_edge<=(~t&in);
-          neg_edge=(t&~in) 
+          neg_edge<=(t&~in);
+          both_edge<=pos_edge|neg_edge;
+          //both_edge<=t^in;
       end
   endmodule
   ```
@@ -461,9 +464,11 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
   //法3；对时钟进行寄存
   ```
 
-  
+- 优先编码器
 
-- 计数器：二进制，移位，移位+反向
+  - casez  ？
+
+- 线性反馈移位寄存器（伪随机码发生器）
 
 - 奇偶校验
 
@@ -597,5 +602,3 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
   
 
   
-
-- - 
