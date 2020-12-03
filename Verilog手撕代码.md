@@ -372,7 +372,11 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
 
   - Moore型
 
+    moore的输出只和当前状态有关。
+
   - Mealy型
+
+    mealy的输出和当前状态和输入都有关。Mealy型和Moore可以互相转化。mealy型所需状态数更少。
 
 - 状态编码的选择
 
@@ -382,6 +386,9 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
   （对于FPGA，可用资源数固定，资源足够就用独热码）
 
 - 序列检测器0010
+
+  - FSM
+  - LFSR
 
 - 饮料售卖机
 
@@ -468,7 +475,7 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
 
   - casez  ？
 
-- 线性反馈移位寄存器（伪随机码发生器）
+- 伪随机码发生器（线性反馈移位寄存器）
 
 - 奇偶校验
 
