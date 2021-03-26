@@ -243,95 +243,10 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
       
       4.综合时候后面的两个AND门和OR门要设为don‘t touch
     
-    ```verilog
-    //glitch free clock switch 
-    module clk_switch (
-                    rst_n          , //
-                    clka            , //
-                    clkb            , //
-                    sel_clkb      , //
-                    clk_o            //
-                    );
-    
-    //assign clka_n = ~clka;
-    //assign clkb_n = ~clkb;
-    
-    // part1
-    //always @ (posedge clka_n or negedge rst_n)
-    always @ (posedge clka or negedge rst_n)
-    begin
-        if (!rst_n) begin
-            sel_clka_d0 <= 1'b0;
-            sel_clka_d1 <= 1'b0;
-        end
-        else begin
-            sel_clka_d0 <= (~sel_clkb) & (~sel_clkb_dly3) ;
-            sel_clka_d1 <= sel_clka_d0 ;
-        end
-    end
-    
-    // part2
-    //always @ (posedge clka_n or negedge rst_n)
-    always @ (posedge clka or negedge rst_n)
-    begin
-        if (!rst_n) begin
-            sel_clka_dly1 <= 1'b0;
-            sel_clka_dly2 <= 1'b0;
-            sel_clka_dly3 <= 1'b0;
-        end
-        else begin
-            sel_clka_dly1 <= sel_clka_d1;
-            sel_clka_dly2 <= sel_clka_dly1 ;
-            sel_clka_dly3 <= sel_clka_dly2 ;
-        end
-    end
-    
-    // part3
-    //always @ (posedge clkb_n or negedge rst_n)
-    always @ (posedge clkb or negedge rst_n)
-    begin
-        if (!rst_n) begin
-            sel_clkb_d0 <= 1'b0;
-            sel_clkb_d1 <= 1'b0;
-        end
-        else begin
-            sel_clkb_d0 <= sel_clkb & (~sel_clka_dly3) ;
-            sel_clkb_d1 <= sel_clkb_d0 ;
-        end
-    end
-    
-    // part4
-    //always @ (posedge clkb_n or negedge rst_n)
-    always @ (posedge clkb or negedge rst_n)
-    begin
-        if (!rst_n) begin
-            sel_clkb_dly1 <= 1'b0;
-            sel_clkb_dly2 <= 1'b0;
-            sel_clkb_dly3 <= 1'b0;
-        end
-        else begin
-            sel_clkb_dly1 <= sel_clkb_d1   ;
-            sel_clkb_dly2 <= sel_clkb_dly1 ;
-            sel_clkb_dly3 <= sel_clkb_dly2 ;
-        end
-    end
-    
-    // part5
-    clk_gate_xxx clk_gate_a ( .CP(clka), .EN(sel_clka_dly1), .Q(clka_g)  .TE(1'b0) );
-    clk_gate_xxx clk_gate_b ( .CP(clkb), .EN(sel_clkb_dly1), .Q(clkb_g)  .TE(1'b0) );
-    //若不使用clock gating cell，part2 part4可不要
-    //assign clka_g = clka & sel_clka_dly1 ;
-    //assign clkb_g = clkb & sel_clkb_dly1 ;
-    assign clk_o = clka_g | clkb_g ;
-    
-    endmodule
-    
-    ```
-    
     ​	如果不用负沿触发的flop，可将最后的and门替换为门控时钟cell，同时en0之后再加一级flop，将延一拍之后的en0b_dly反馈给另外一路，这样才能保证在当前路**完全关断**的情况下切换.(也可以额外定义反向时钟)
     
     ![img](pics/642.jpg)
-
+  
 - 多bit情况
 
   - 多个信号合并
@@ -352,7 +267,95 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
 
 - Valid-Ready握手协议
 
+  https://blog.csdn.net/maowang1234588/article/details/100065072
   
+  VALID信号由源设备控制，READY信号由宿设备控制。源设备拉起VALID信号表示其把数据（或地址等信号）放上了总线，等待宿设备接收；在宿设备接收数据以前，源设备必须要保持住总线上的数据不变。宿设备只有在可以接收数据时，才可以拉起READY信号，否则只能拉低READY信号。只有当VALID和READY信号同时有效时，一次数据传输才算完成。
+  
+  AXI协议保障数据正确传输使用了该握手协议，所有的通道都采用同样的握手协议。
+  
+  Valid-Ready信号产生有两种情况。
+  
+  - Ready-Before-Valid
+  
+    Ready-Before-Valid是Ready信号在Valid信号之前有效。在数据来临之前，通道已准备好接收数据，可以保持通道的最大吞吐量，因为Ready先产生，这个通道保持刷新等待数据。通道作为接受数据端采用这样的设计。
+  
+    ![img](pics/Ready-Before-Valid.png)
+  
+  - Valid-before-Ready
+  
+    Valid-before-Ready是Valid信号在Ready信号之前有效。通道作为数据输出端采用这样的设计。收到下游接收端的准备接收信号，才开始传输数据。
+  
+    ![img](pics/Valid-before-Ready.png)
+  
+  - Stalemate 死锁
+  
+    输出端用Ready-Before-Valid而接受端使用Valid-before-Ready，就会出现输出端等待接受端给出的Ready来输出数据，但是接收端也在等待输出端给出Valid信号来接受数据。两者都在等待却没有一方先给，所以这个时候这个通道就是无效的，被“锁住”了。
+  
+  - verilog实现
+  
+    - 无缓存
+  
+    ```verilog
+    module Handshake_Protocol(
+       input   clk, 
+       input   rst_n,
+       //upsteam
+       input   valid_i, 
+       output  ready_o, 
+       //downsteam
+       output  valid_o, 
+       input   ready_i, 
+       //data
+       input   din, 
+       output  reg dout
+    );
+    
+    reg     full;
+    wire    wr_en;
+    
+    always @(posedge clk or negedge rst_n)begin
+       if(rst_n == 1'b0)begin
+           dout <= 0;
+           full <= 0;
+       end
+       else if(wr_en == 1'b1)begin
+           if(valid_i == 1'b1)begin
+               full <= 1;
+               dout <= din;
+           end
+           else begin
+               full <= 0;
+               dout <= dout;
+           end
+       end
+       else begin
+           full <= full;
+           dout <= dout;
+       end
+    end
+    
+    assign  wr_en = ~full | ready_i;
+    
+    assign  valid_o = full;
+    assign  ready_o = wr_en;
+    
+    endmodule
+    ```
+  
+    ![img](pics/handshake.png)
+  
+    - 带缓存（用同步FIFO实现）
+  
+      ![img](pics/handshake1.png)
+  
+      ```verilog
+      assign  valid_o = ~fifo_empty;
+      assign  ready_o = ~fifo_full;
+      assign  wr_en = ready_o & valid_i;
+      assign  rd_en = ready_i & valid_o;
+      ```
+  
+      
 
 #### 有限状态机FSM
 
@@ -392,6 +395,9 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
 
 - 饮料售卖机
 
+  设计一个自动饮料售卖机，共有两种饮料，其中饮料 A 每个 10 分钱，饮料 B 每个 5 分钱，硬币有 5 分和 10 分两种，并考虑找零。
+  要求用状态机实现，定义状态，画出状态转移图，并用 Verilog 完整描述该识别模块
+
 - 回文序列检测
 
 #### FIFO
@@ -418,9 +424,31 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
 
 - 奇数
 
+  对于实现占空比为50%的N倍奇数分频，可以分解为两个通道：
+
+  - 上升沿触发进行模N计数，计数选定到某一个值进行输出时钟翻转，然后经过（N-1）/2再次进行翻转得到一个**占空比为非50%奇数N分频时钟**；
+  - 下降沿触发进行模N计数，到和上升沿触发输出时钟翻转选定值相同值时，进行输出时钟时钟翻转，同样经过（N-1）/2时，输出时钟再次翻转生成**占空比非50%的奇数N分频时钟**。
+
+  将这两个占空比非50%的N分频时钟**或运算**，得到**占空比为50%的奇数n分频时钟**。
+
+  
+  ​        
+  
+  
+  
 - 偶数
 
+  直接计数到N/2-1,翻转时钟即可。
+
+  
+  
+  
+  
 - 小数
+
+  要求精确的时候用PLL先倍频再分频。对于相位和占空比要求不严格，若要求N=M.D>1分频，分为整数M和小数D，我们使用M分频和M+1分频来构成M.D分频。
+
+  ![img](pics/小数分频.png)
 
 #### 数字计算
 
@@ -429,6 +457,7 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
 - wallace乘法器
 - Wallace树
 - 除法器
+- 浮点数运算
 
 
 #### 其他
@@ -476,6 +505,43 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
   - casez  ？
 
 - 伪随机码发生器（线性反馈移位寄存器）
+
+  与CRC类似。SEED通过生成多项式后生成了伪随机序列。M个触发器最多有2^N-1种状态（不能出现全0的死锁状态）。
+
+  ```verilog
+  //8bit F(x)=X^8+X^4+X^3+X^2+1
+  module rand_gen
+  (
+  	input reset,
+      input clk,
+      input load,
+      input [7:0] seed,
+      output reg [7:0] rand_num
+  );
+      integer i;
+      always@(posedge reset or posedge clk) begin
+          if(reset)
+              rand_num<=8'b0;
+          else if(load)
+              rand_num<=seed;
+          else begin
+              for(i=1;i<8;i=i+1)
+                  rand_num[i]<=rand_num[i-1];
+              //斐波那契LFSR 也称为多到一型LFSR，即抽头序列对应bit位置的多个触发器的输出通过异或逻辑来驱动一个触发器的输入
+              rand_num[0]<=rand_num[1]^(rand_num[2]^(rand_num[3]^rand_num[7]))
+              //伽罗瓦LFSR  抽头间进行一级异或，速度更快
+              /*rand_num[0]<={rand_num[0],
+                            rand_num[7]^rand_num[3],
+                            rand_num[6:3],
+                            rand_num[3]^rand_num[2],
+                            rand_num[2]^rand_num[1],
+                            rand_num[1]}*/
+          end
+      end
+  endmodule
+  ```
+
+  
 
 - 奇偶校验
 
@@ -565,8 +631,14 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
 
   - **并行CRC**:并行CRC校验码产生器 16位CRC同时输出，所以要求在一个时钟周期内，移位寄存器一次需要移16位。实际上，移位寄 存器不可能在一个时钟周期内移16位，所以这部分电路是用**组合逻辑来完成**。整个CRC校验码产生器由组合逻辑和16个输出寄存器组成。
 
+    并行CRC计算较为复杂，可以参考：https://blog.csdn.net/tmdbyc/article/details/105116043
     
-
+    一般使用工具直接生成：http://www.easics.com/webtools/crctool
+    
+    
+    
+    
+  
 - 独热码检测
 
   ```verilog
@@ -584,13 +656,11 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
   
 - 串并转换
 
-  
+  整数倍，直接使用寄存器。非整数倍，用状态机，取公倍数。
 
 
 
-
-
-- ### clock gating
+- ### ~~clock gating~~
 
   - 用AND门有一个显而易见的缺陷，由于当EN的变化会立刻反映到输出端，AND门输出会产生glitch。
 
