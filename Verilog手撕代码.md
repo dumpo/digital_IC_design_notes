@@ -34,8 +34,46 @@
   always @ (posedge clk or negedge rst_n)
            if(!rst_n) c <= 1'b0;
            else c <= b;     
-  ```
+  
 
+  
+  /*另一种写法*/
+  //Synchronized Asynchronous Reset
+  module sync_async_reset(clock,reset_n,data_a,data_b,out_a,out_b);
+   
+      input clock, reset_n;   
+      input data_a, data_b;
+      output out_a, out_b;
+   
+      reg rst_nr, rst_n;
+  	reg out_a, out_b;
+   
+      always @(posedge clock or negedge reset_n) begin
+          if(!reset_n) begin
+  			rst_nr <= 1'b0;
+              rst_n <= 1'b0;			//异步复位
+          end
+          else begin
+  			rst_nr <= 1'b1;
+  			rst_n <= rst_nr;		//同步释放
+  		end
+      end
+  	
+      //信号rst_n作为新的总的复位信号，后续可以以“异步”做复位使用
+      always @(posedge clock or negedge rst_n) begin
+          if(!rst_n) begin
+              out_a <= 1'b0;
+              out_b <= 1'b0;
+          end
+          else begin
+  			out_a <= data_a;
+  			out_b <= data_b;
+          end
+      end
+  	
+  endmodule  // sync_async_reset
+  ```
+  
   
 
 #### 跨时钟域CDC
@@ -431,6 +469,12 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
 
   将这两个占空比非50%的N分频时钟**或运算**，得到**占空比为50%的奇数n分频时钟**。
 
+  
+  
+  
+  
+  或者 用上升沿与下降沿分别做**2N**的分频。让后**异或**
+  
   
   ​        
   
