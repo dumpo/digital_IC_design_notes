@@ -13,15 +13,15 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
 
     D触发器的内部是一个主从锁存器(master-slave latch)，依靠背靠背的反相器锁存数据。
 
-    ![image-20201115220814212](C:\Users\APU\OneDrive\notes\pics\image-20201115220814212.PNG)
+    ![image-20201115220814212](pics\image-20201115220814212.PNG)
 
     时钟为低电平时，主锁存器更新输入值，从锁存器保持上一个输出值不变。
 
-    ![image-20201115221127230](C:\Users\APU\OneDrive\notes\pics\image-20201115221127230.PNG)
+    ![image-20201115221127230](pics\image-20201115221127230.PNG)
 
     时钟为高电平时，主锁存器保持上一个输出值不变，从锁存器更新输入。
 
-    ![image-20201115221511788](C:\Users\APU\OneDrive\notes\pics\image-20201115221511788.PNG)
+    ![image-20201115221511788](pics\image-20201115221511788.PNG)
 
     由于反相器需要一定时间才能锁定，若时钟跳变前后，未完成锁存时钟就改变，最后输出的电平高低会不稳定，这就是亚稳态。
 
@@ -215,13 +215,13 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
 
     Ready-Before-Valid是Ready信号在Valid信号之前有效。在数据来临之前，通道已准备好接收数据，可以保持通道的最大吞吐量，因为Ready先产生，这个通道保持刷新等待数据。通道作为接受数据端采用这样的设计。
 
-    ![img](C:\Users\APU\OneDrive\notes\pics\Ready-Before-Valid.png)
+    ![img](pics\Ready-Before-Valid.png)
 
   - Valid-before-Ready
 
     Valid-before-Ready是Valid信号在Ready信号之前有效。通道作为数据输出端采用这样的设计。收到下游接收端的准备接收信号，才开始传输数据。
 
-    ![img](C:\Users\APU\OneDrive\notes\pics\Valid-before-Ready.png)
+    ![img](pics\Valid-before-Ready.png)
 
   - Stalemate 死锁
 
@@ -229,61 +229,12 @@ https://www.cnblogs.com/icparadigm/p/12794422.html
 
   - verilog实现
 
-    - 无缓存
-
-    ```verilog
-    module Handshake_Protocol(
-       input   clk, 
-       input   rst_n,
-       //upsteam
-       input   valid_i, 
-       output  ready_o, 
-       //downsteam
-       output  valid_o, 
-       input   ready_i, 
-       //data
-       input   din, 
-       output  reg dout
-    );
-    
-    reg     full;
-    wire    wr_en;
-    
-    always @(posedge clk or negedge rst_n)begin
-       if(rst_n == 1'b0)begin
-           dout <= 0;
-           full <= 0;
-       end
-       else if(wr_en == 1'b1)begin
-           if(valid_i == 1'b1)begin
-               full <= 1;
-               dout <= din;
-           end
-           else begin
-               full <= 0;
-               dout <= dout;
-           end
-       end
-       else begin
-           full <= full;
-           dout <= dout;
-       end
-    end
-    
-    assign  wr_en = ~full | ready_i;
-    
-    assign  valid_o = full;
-    assign  ready_o = wr_en;
-    
-    endmodule
-    ```
-
-    ![img](C:\Users\APU\OneDrive\notes\pics\handshake.png)
+    - 无缓存（见典型电路）
 
     - 带缓存（用同步FIFO实现）
-
-      ![img](C:\Users\APU\OneDrive\notes\pics\handshake1.png)
-
+    
+      ![img](pics\handshake1.png)
+    
       ```verilog
       assign  valid_o = ~fifo_empty;
       assign  ready_o = ~fifo_full;
